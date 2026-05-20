@@ -6,7 +6,7 @@ Utility to run a command with arguments on the A100 "AI" cores on SpacemiT K3.
 
 ```bash
 $ git clone https://github.com/brucehoult/k3_ai
-$ cd ai
+$ cd k3_ai
 $ make
 $ ai bash
 ```
