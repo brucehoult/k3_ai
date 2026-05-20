@@ -1,0 +1,17 @@
+#!/bin/bash
+
+if [[ $# -eq 0 ]]; then
+    echo "Usage: ai <command> [arguments...]" >&2
+    exit 1
+fi
+
+cmd="$1"
+shift
+
+if ! abs_cmd=$(realpath -e "$(which "$cmd" 2>/dev/null)" 2>/dev/null); then
+    echo "ai: command not found: $cmd" >&2
+    exit 127
+fi
+
+# Run aix with the absolute path
+exec aix "$abs_cmd" "$@"
