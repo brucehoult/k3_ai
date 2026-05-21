@@ -41,10 +41,11 @@ _start:
     ecall
 
     # === Prepare and execve(argv[1], &argv[1], envp) ===
-    ld      a0, 8(sp)           # argv[1] (filename)
+    ld      a0, 16(sp)          # argv[1] (filename)
     addi    a1, sp, 16          # pointer to argv[1..]
-    ld      a2, 0(sp)           # argc
-    sh3add  a2, a2, a1          # envp
+    ld      a3, (sp)            # argc
+    addi    a2, sp, 24	
+    sh3add  a2, a3, a2          # envp
     li      a7, 221             # __NR_execve
     ecall                       # shouldn't return
 
