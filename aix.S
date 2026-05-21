@@ -1,61 +1,60 @@
-	.globl _start
-_start:	ld	s0, (sp)	# argc
-	addi	s1, sp, 8	# argv
-	addi	s2, sp, 24
-	sh3add	s2, s0, s2	# envp
+    .globl _start
+    .section .text
+_start:
+    # === Get PID ===
+    li      a7, 172             # __NR_getpid
+    ecall
 
-	# s3 = ourPID
-	li	a7, 172
-	ecall
-	mv	s3, a0
+    # === Convert to decimal string ===
+    la      s0, bufend          # s0 = end of buffer (will become start)
+    mv      s1, s0              # s1 will be length later
+    li      a3, 10
+1:
+    remu    a4, a0, a3
+    divu    a0, a0, a3
+    addi    a4, a4, '0'
+    addi    s0, s0, -1
+    sb      a4, 0(s0)
+    bnez    a0, 1b
+    sub     s1, s1, s0          # length
 
-	# s11 = openat(aiFile)
-	li	a0, -100
-	la	a1, aiFile
-	li	a2, 0x241
-	li	a3, 0600
-	li	a7, 56
-	ecall
-	mv	s11, a0
+    # === openat(AT_FDCWD, "/proc/set_ai_thread", O_WRONLY, 0600) ===
+    li      a0, -100            # AT_FDCWD
+    la      a1, ai_path
+    li      a2, 1               # O_WRONLY
+    li      a3, 0600            # mode (ignored for procfs)
+    li      a7, 56              # __NR_openat
+    ecall
+    bltz    a0, fail
 
-	# print PID to file
-	mv	a0, s3
-	call	wuint
+    # === write(fd, buf, len) ===
+    mv      s2, a0              # save fd
+    mv      a1, s0              # buffer start
+    mv      a2, s1              # length
+    li      a7, 64              # __NR_write
+    ecall
+    bltz    a0, fail
 
-	# close file
-	mv	a0, s11
-	li	a7, 57
-	ecall
-	
-	# Exec the program in argv[1] with remaining args
-	ld	a0, 8(s1)	# filename = argv[1]
-	addi	a1, s1, 8	# new_argv = &argv[1]
-	mv	a2, s2		# envp
-	li	a7, 221		# sys_execve
-	ecall
+    # === close(fd) ===
+    mv      a0, s2
+    li      a7, 57              # __NR_close
+    ecall
 
-	# If execve fails, exit
-	li	a0, 1
-	li	a7, 93
-	ecall
+    # === Prepare and execve(argv[1], &argv[1], envp) ===
+    ld      a0, 8(sp)           # argv[1] (filename)
+    addi    a1, sp, 16          # pointer to argv[1..]
+    ld      a2, 0(sp)           # argc
+    sh3add  a2, a2, a1          # envp
+    li      a7, 221             # __NR_execve
+    ecall                       # shouldn't return
 
-wuint:	la	a1, bufend
-	mv	a2, a1
-	li	a3, 10
-1:	remu	a4, a0, a3
-	divu	a0, a0, a3
-	addi	a4, a4, '0'
-	addi	a1, a1, -1
-	sb	a4, (a1)
-	bnez	a0, 1b
-	mv	a0, s11		# fd
-	sub	a2, a2, a1	# count, a1 is already ptr to buf
-	li	a7,64
-	ecall
-	ret
+fail:
+    li      a7, 93              # __NR_exit with existing error code
+    ecall
 
-aiFile:	.asciz "/proc/set_ai_thread"
+.section .rodata
+ai_path: .asciz "/proc/set_ai_thread"
 
-	.section .data
-buf:	.space 24
-bufend:	
+.section .data
+buf:    .space 32
+bufend:
